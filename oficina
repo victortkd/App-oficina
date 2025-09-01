@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Oficina </title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+<h1>🔧 Serviços oficina</h1>
+</header>
+<main class="container">
+<section class="card">
+<h2>Novo Serviço</h2>
+<form id="serviceForm">
+<div class="grid">
+<label class="field"><span>Placa *</span><input type="text" id="plate" placeholder="ABC1D23" required maxlength="7"/></label>
+<label class="field"><span>Valor (R$) *</span><input type="text" id="value" placeholder="150,00" inputmode="decimal" required/></label>
+</div>
+<label class="field"><span>Serviço realizado *</span><textarea id="service" rows="3" required></textarea></label>
+<label class="field"><span>Foto (opcional)</span><input type="file" id="photo" accept="image/*" capture="environment"></label>
+<div class="actions">
+<button type="submit" class="btn">Salvar</button>
+<button type="reset" class="btn ghost">Limpar</button>
+</div>
+</form>
+</section>
+<section class="card">
+<h2>Registros</h2>
+<input id="search" type="search" placeholder="Buscar por placa..." />
+<div id="list" class="list"></div>
+<p id="emptyState" class="muted" hidden>Nenhum registro ainda.</p>
+<div class="actions">
+<button id="exportBtn" class="btn ghost">Exportar</button>
+<input type="file" id="importFile" style="display:none">
+<button id="importBtn" class="btn ghost">Importar</button>
+</div>
+</section>
+</main>
+<footer class="footer">
+<span>Todos os registros ficam no celular</span>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
+
+{
+  "name": "Oficina Fácil",
+  "short_name": "Oficina",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+body{font-family:sans-serif;background:#0d172a;color:#fff;margin:0}
+.topbar{padding:16px;background:#0b1020}
+.container{max-width:800px;margin:auto;padding:16px}
+.card{background:#11182c;padding:16px;border-radius:8px;margin-bottom:16px}
+.field{display:flex;flex-direction:column;margin-bottom:12px}
+input,textarea{padding:8px;border-radius:4px;border:none;font-size:16px}
+.btn{padding:10px 16px;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid #0ea5e9}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.list{display:grid;gap:8px;margin-top:12px}
+.item{padding:12px;background:#0b1224;border-radius:8px}
+.muted{color:#9fb0c7}
+
+const CACHE = 'oficina-cache-v1';
+const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+});
+
+<?php
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+
+$host = "localhost";
+$user = "root";
+$pass = "senha";
+$db   = "oficina";
+
+$conn = new mysqli($host, $user, $pass, $db);
+if ($conn->connect_error) {
+    die(json_encode(["erro" => $conn->connect_error]));
+}
+
+$action = $_GET['action'] ?? '';
+
+if ($action == 'listar') {
+    $res = $conn->query("SELECT id, placa, valor, servico, criado_em FROM servicos ORDER BY criado_em DESC");
+    echo json_encode($res->fetch_all(MYSQLI_ASSOC));
+    exit;
+}
+
+if ($action == 'inserir') {
+    $placa   = $_POST['placa'];
+    $valor   = $_POST['valor'];
+    $servico = $_POST['servico'];
+    $foto    = isset($_FILES['foto']) ? file_get_contents($_FILES['foto']['tmp_name']) : null;
+
+    $stmt = $conn->prepare("INSERT INTO servicos (placa, valor, servico, foto) VALUES (?, ?, ?, ?)");
+    $null = NULL;
+    $stmt->bind_param("sdss", $placa, $valor, $servico, $null);
+    if ($foto) $stmt->send_long_data(3, $foto);
+    $stmt->execute();
+
+    echo json_encode(["status" => "ok"]);
+    exit;
+}
+?>
+const dbName = 'OficinaDB';
+const storeName = 'servicos';
+
+let db;
+const request = indexedDB.open(dbName, 1);
+request.onupgradeneeded = e => {
+  db = e.target.result;
+  db.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
+};
+request.onsuccess = e => { db = e.target.result; renderList(); };
+request.onerror = e => { console.error(e); };
+
+const form = document.getElementById("serviceForm");
+const plateEl = document.getElementById("plate");
+const valueEl = document.getElementById("value");
+const serviceEl = document.getElementById("service");
+const photoEl = document.getElementById("photo");
+const searchEl = document.getElementById("search");
+
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  const tx = db.transaction(storeName, 'readwrite');
+  const store = tx.objectStore(storeName);
+  const reader = new FileReader();
+  reader.onload = () => {
+    store.add({
+      placa: plateEl.value.trim(),
+      valor: valueEl.value.trim(),
+      servico: serviceEl.value.trim(),
+      foto: reader.result || null,
+      criado_em: new Date().toISOString()
+    });
+    tx.oncomplete = () => { form.reset(); renderList(); };
+  };
+  if(photoEl.files[0]) reader.readAsDataURL(photoEl.files[0]);
+  else reader.onload();
+});
+
+async function renderList(filter='') {
+  const list = document.getElementById("list");
+  const empty = document.getElementById("emptyState");
+  list.innerHTML = '';
+  const tx = db.transaction(storeName,'readonly');
+  const store = tx.objectStore(storeName);
+  const all = await store.getAll();
+  const filtered = filter ? all.filter(s => s.placa.toUpperCase().includes(filter.toUpperCase())) : all;
+  if(!filtered.length){empty.hidden=false; return;} else empty.hidden=true;
+  filtered.forEach(job => {
+    const div = document.createElement("div");
+    div.className='item';
+    div.innerHTML=`<div><strong>${job.placa}</strong></div>
+                   <div>${job.servico}</div>
+                   <div>R$ ${job.valor}</div>
+                   <small>${new Date(job.criado_em).toLocaleString()}</small>`;
+    list.appendChild(div);
+  });
+}
+
+searchEl.addEventListener("input", ()=>renderList(searchEl.value));
+
+// Export JSON
+document.getElementById("exportBtn").addEventListener("click", async ()=>{
+  const tx = db.transaction(storeName,'readonly');
+  const store = tx.objectStore(storeName);
+  const all = await store.getAll();
+  const blob = new Blob([JSON.stringify(all, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'servicos.json'; a.click();
+});
+
+// Import JSON
+const importFile = document.getElementById("importFile");
+document.getElementById("importBtn").addEventListener("click", ()=>importFile.click());
+importFile.addEventListener("change", ()=>{
+  const file = importFile.files[0];
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const data = JSON.parse(reader.result);
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    data.forEach(item=>{store.add(item);});
+    tx.oncomplete = ()=>renderList();
+  };
+  reader.readAsText(file);
+});
